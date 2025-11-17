@@ -42,9 +42,21 @@ struct ARViewContainer: UIViewRepresentable {
         
         config.sceneReconstruction = .meshWithClassification
         
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
-            config.frameSemantics.insert(.sceneDepth)
+        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
+            print("LiDAR 지원됨(Scene Reconstruction 활성화)")
+            config.sceneReconstruction = .meshWithClassification
+        } else {
+            print("LiDAR 지원 안 됨")
         }
+        
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+            print("Scene Depth 지원됨")
+            config.frameSemantics.insert(.sceneDepth)
+        } else {
+            print("scene Depth 지원 안 됨")
+        }
+        
+        arView.debugOptions = [.showSceneUnderstanding]
         
         arView.session.run(config)
         
@@ -52,6 +64,10 @@ struct ARViewContainer: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: ARView, context: Context) {}
+    
+    func dismantleUIView(_ uiView: ARView, coordinator: ()) {
+        uiView.session.pause()
+    }
 }
 
 #Preview {
