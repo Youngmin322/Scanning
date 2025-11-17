@@ -40,6 +40,14 @@ struct ARViewContainer: UIViewRepresentable {
         
         let config = ARWorldTrackingConfiguration()
         
+        config.sceneReconstruction = .meshWithClassification
+        
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+            config.frameSemantics.insert(.sceneDepth)
+        }
+        
+        arView.session.run(config)
+        
         return arView
     }
     
