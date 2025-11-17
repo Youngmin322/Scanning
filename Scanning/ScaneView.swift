@@ -14,24 +14,26 @@ struct ScaneView: View {
     let store: StoreOf<ScaneFeature>
     
     var body: some View {
-        ZStack {
-            ARViewContainer()
-                .edgesIgnoringSafeArea(.all)
-            VStack {
-                Spacer()
-                HStack(spacing: 40) {
-                    Button(action: {
-                        store.send(.scanButtonTapped)
-                    }) {
-                        Image(systemName: "viewfinder")
-                            .font(.system(size: 35))
-                            .foregroundColor(.gray)
-                            .frame(width: 70, height: 70)
-                            .clipShape(Circle())
-                            .glassEffect(in: Circle())
+        WithViewStore(store, observe: { $0 }) { viewStore in
+            ZStack {
+                ARViewContainer()
+                    .edgesIgnoringSafeArea(.all)
+                VStack {
+                    Spacer()
+                    HStack(spacing: 40) {
+                        Button(action: {
+                            store.send(.scanButtonTapped)
+                        }) {
+                            Image(systemName: viewStore.isScanning ? "stop.fill" : "viewfinder")
+                                .font(.system(size: 35))
+                                .foregroundColor(viewStore.isScanning ? .red : .gray)
+                                .frame(width: 70, height: 70)
+                                .clipShape(Circle())
+                                .glassEffect(in: Circle())
+                        }
                     }
+                    .padding(.bottom, 30)
                 }
-                .padding(.bottom, 30)
             }
         }
     }
