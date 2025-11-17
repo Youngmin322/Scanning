@@ -20,8 +20,8 @@ struct ScaneView: View {
                     Button(action: {
                         print("Press")
                     }) {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 30))
+                        Image(systemName: "viewfinder")
+                            .font(.system(size: 35))
                             .foregroundColor(.gray)
                             .frame(width: 70, height: 70)
                             .clipShape(Circle())
