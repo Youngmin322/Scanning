@@ -9,7 +9,7 @@ import ComposableArchitecture
 
 struct ScaneFeature: Reducer {
     struct State: Equatable {
-        // 일단 비워둬도 됨
+
     }
     
     enum Action: Equatable {

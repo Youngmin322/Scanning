@@ -6,13 +6,16 @@
 //
 
 import SwiftUI
+import ComposableArchitecture
 
 struct ContentView: View {
     var body: some View {
         TabView {
             Tab("스캔", systemImage: "camera.viewfinder") {
                 NavigationStack {
-                    ScaneView()
+                    ScaneView(store: Store(initialState: ScaneFeature.State()) {
+                        ScaneFeature()
+                    })
                 }
             }
             

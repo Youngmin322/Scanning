@@ -8,8 +8,11 @@
 import SwiftUI
 import RealityKit
 import ARKit
+import ComposableArchitecture
 
 struct ScaneView: View {
+    let store: StoreOf<ScaneFeature>
+    
     var body: some View {
         ZStack {
             ARViewContainer()
@@ -18,7 +21,7 @@ struct ScaneView: View {
                 Spacer()
                 HStack(spacing: 40) {
                     Button(action: {
-                        print("Press")
+                        store.send(.scanButtonTapped)
                     }) {
                         Image(systemName: "viewfinder")
                             .font(.system(size: 35))
