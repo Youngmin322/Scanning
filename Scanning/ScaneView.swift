@@ -18,14 +18,17 @@ struct ScaneView: View {
                 Spacer()
                 HStack(spacing: 40) {
                     Button(action: {
-                        
+                        print("Press")
                     }) {
                         Image(systemName: "camera.fill")
-                            .font(.system(size: 40))
-                            .foregroundColor(.blue)
+                            .font(.system(size: 30))
+                            .foregroundColor(.gray)
+                            .frame(width: 70, height: 70)
+                            .clipShape(Circle())
+                            .glassEffect(in: Circle())
                     }
                 }
-                .padding(.bottom, 50)
+                .padding(.bottom, 30)
             }
         }
     }
@@ -44,5 +47,5 @@ struct ARViewContainer: UIViewRepresentable {
 }
 
 #Preview {
-    ScaneView()
+    ContentView()
 }
