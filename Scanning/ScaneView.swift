@@ -16,7 +16,7 @@ struct ScaneView: View {
     var body: some View {
         WithViewStore(store, observe: { $0 }) { viewStore in
             ZStack {
-                ARViewContainer()
+                ARViewContainer(isScanning: viewStore.isScanning)
                     .edgesIgnoringSafeArea(.all)
                 VStack {
                     Spacer()
@@ -40,6 +40,8 @@ struct ScaneView: View {
 }
 
 struct ARViewContainer: UIViewRepresentable {
+    let isScanning: Bool
+    
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
         
@@ -62,13 +64,20 @@ struct ARViewContainer: UIViewRepresentable {
         }
         
         arView.debugOptions = [.showSceneUnderstanding]
-        
         arView.session.run(config)
         
         return arView
     }
     
-    func updateUIView(_ uiView: ARView, context: Context) {}
+    func updateUIView(_ uiView: ARView, context: Context) {
+        print("ARview 업데이트: isScanning = \(isScanning)")
+        
+        if isScanning {
+            print("스캔 시작")
+        } else {
+            print("스캔 정지")
+        }
+    }
     
     func dismantleUIView(_ uiView: ARView, coordinator: ()) {
         uiView.session.pause()
