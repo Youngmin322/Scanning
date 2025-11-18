@@ -25,7 +25,7 @@ struct ScanningApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ScaneView()
+            ContentView()
         }
         .modelContainer(sharedModelContainer)
     }
