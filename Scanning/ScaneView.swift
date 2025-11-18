@@ -40,13 +40,16 @@ struct ScaneView: View {
 }
 
 struct ARViewContainer: UIViewRepresentable {
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
     let isScanning: Bool
     
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
         
         let config = ARWorldTrackingConfiguration()
-        
         config.sceneReconstruction = .meshWithClassification
         
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
@@ -64,6 +67,8 @@ struct ARViewContainer: UIViewRepresentable {
         }
         
         arView.debugOptions = [.showSceneUnderstanding]
+        
+        arView.session.delegate = context.coordinator
         arView.session.run(config)
         
         return arView
@@ -71,6 +76,8 @@ struct ARViewContainer: UIViewRepresentable {
     
     func updateUIView(_ uiView: ARView, context: Context) {
         print("ARview 업데이트: isScanning = \(isScanning)")
+        
+        context.coordinator.isScanning = isScanning
         
         if isScanning {
             print("스캔 시작")
@@ -81,6 +88,26 @@ struct ARViewContainer: UIViewRepresentable {
     
     func dismantleUIView(_ uiView: ARView, coordinator: ()) {
         uiView.session.pause()
+    }
+    
+    class Coordinator: NSObject, ARSessionDelegate {
+        var isScanning = false
+        var meshAnchors: [ARMeshAnchor] = [] // 수집한 메쉬 데이터를 담는 배열
+        
+        func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+            guard isScanning else { return }
+            
+            let newMeshAnchors = anchors.compactMap { $0 as? ARMeshAnchor }
+            meshAnchors.append(contentsOf: newMeshAnchors)
+            print("새 메쉬 추가: \(newMeshAnchors.count), 총: \(meshAnchors.count)개")
+        }
+        
+        func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
+            guard isScanning else { return }
+            
+            let updatedMeshAnchors = anchors.compactMap { $0 as? ARMeshAnchor }
+            print("메쉬 업데이트: \(updatedMeshAnchors.count)")
+        }
     }
 }
 
