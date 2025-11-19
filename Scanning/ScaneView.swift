@@ -16,13 +16,29 @@ struct ScaneView: View {
     var body: some View {
         WithViewStore(store, observe: { $0 }) { viewStore in
             ZStack {
-                ARViewContainer(isScanning: viewStore.isScanning)
-                    .edgesIgnoringSafeArea(.all)
+                ARViewContainer(
+                    isScanning: viewStore.isScanning,
+                    store: store
+                )
+                .edgesIgnoringSafeArea(.all)
+                
                 VStack {
+                    if viewStore.isScanning {
+                        HStack {
+                            Text("스캔된 메쉬: \(viewStore.meshCount)")
+                                .font(.headline)
+                                .padding()
+                                .background(.ultraThinMaterial)
+                                .cornerRadius(10)
+                        }
+                        .padding(.top, 50)
+                    }
+                    
                     Spacer()
+                    
                     HStack(spacing: 40) {
                         Button(action: {
-                            store.send(.scanButtonTapped)
+                            viewStore.send(.scanButtonTapped)
                         }) {
                             Image(systemName: viewStore.isScanning ? "stop.fill" : "viewfinder")
                                 .font(.system(size: 35))
@@ -30,6 +46,19 @@ struct ScaneView: View {
                                 .frame(width: 70, height: 70)
                                 .clipShape(Circle())
                                 .glassEffect(in: Circle())
+                        }
+                        
+                        if viewStore.isScanning {
+                            Button(action: {
+                                viewStore.send(.completeScan)
+                            }) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(.green)
+                                    .frame(width: 70, height: 70)
+                                    .clipShape(Circle())
+                                    .glassEffect(in: Circle())
+                            }
                         }
                     }
                     .padding(.bottom, 30)
@@ -40,11 +69,12 @@ struct ScaneView: View {
 }
 
 struct ARViewContainer: UIViewRepresentable {
+    let isScanning: Bool
+    let store: StoreOf<ScaneFeature>
+    
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
-    
-    let isScanning: Bool
     
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
@@ -78,6 +108,7 @@ struct ARViewContainer: UIViewRepresentable {
         print("ARview 업데이트: isScanning = \(isScanning)")
         
         context.coordinator.isScanning = isScanning
+        context.coordinator.store = store
         
         if isScanning {
             print("스캔 시작")
@@ -93,6 +124,7 @@ struct ARViewContainer: UIViewRepresentable {
     class Coordinator: NSObject, ARSessionDelegate {
         var isScanning = false
         var meshAnchors: [ARMeshAnchor] = [] // 수집한 메쉬 데이터를 담는 배열
+        var store: StoreOf<ScaneFeature>?
         
         func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
             guard isScanning else { return }
@@ -100,6 +132,8 @@ struct ARViewContainer: UIViewRepresentable {
             let newMeshAnchors = anchors.compactMap { $0 as? ARMeshAnchor }
             meshAnchors.append(contentsOf: newMeshAnchors)
             print("새 메쉬 추가: \(newMeshAnchors.count), 총: \(meshAnchors.count)개")
+            
+            store?.send(.updateMeshCount(meshAnchors.count))
         }
         
         func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
