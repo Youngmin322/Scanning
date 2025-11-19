@@ -18,6 +18,7 @@ struct ScaneFeature: Reducer {
         case toggleScanning
         case completeScan
         case updateMeshCount(Int)
+        case saveMeshData
     }
     
     // Action이 들어오면 State 변경을 담당하는 함수
@@ -33,6 +34,9 @@ struct ScaneFeature: Reducer {
             
         case .completeScan: state.isScanning = false
             print("스캔 완료")
+            return .send(.saveMeshData) // 저장 엑션 전송
+            
+        case .saveMeshData:
             return .none
             
         case .updateMeshCount(let count): state.meshCount = count
