@@ -10,11 +10,14 @@ import ComposableArchitecture
 struct ScaneFeature: Reducer {
     struct State: Equatable {
         var isScanning = false // 스캔 중인지 아닌지 확인하는 상태 변수
+        var meshCount = 0 // 스캔된 메쉬 개수
     }
     
     enum Action: Equatable {
         case scanButtonTapped
         case toggleScanning
+        case completeScan
+        case updateMeshCount(Int)
     }
     
     // Action이 들어오면 State 변경을 담당하는 함수
@@ -26,6 +29,13 @@ struct ScaneFeature: Reducer {
         case .toggleScanning:
             state.isScanning.toggle()
             print("스캔 상태: \(state.isScanning)")
+            return .none
+            
+        case .completeScan: state.isScanning = false
+            print("스캔 완료")
+            return .none
+            
+        case .updateMeshCount(let count): state.meshCount = count
             return .none
         }
     }
