@@ -8,11 +8,15 @@
 import Foundation
 import ARKit
 
-class MeshExpoter {
+private extension SIMD4 where Scalar == Float {
+    var xyz: SIMD3<Float> { SIMD3(x, y, z) }
+}
+
+class MeshExporter {
     // ARMeshAnchor 배열을 obj 파일로 저장
-    func exportToOBJ(meshAnchors: [ARMeshAnchor]) -> URL? {
+    static func exportToOBJ(meshAnchors: [ARMeshAnchor]) -> URL? {
         guard !meshAnchors.isEmpty else {
-            print("저장할 메쉬 엇음")
+            print("저장할 메쉬 없음")
             
             return nil
         }
@@ -32,22 +36,27 @@ class MeshExpoter {
             let geometry = meshAnchor.geometry
             let transform = meshAnchor.transform
             
-            // 1. 정점(Vertices) 추가
-            let vertices = geometry.vertices
-            for vertexIndex in 0..<vertices.count {
-                // 정점 위치 가져오기
-                let vertex = vertices[vertexIndex]
-                
-                // Transform 적용 (월드 좌표로 변환)
-                let worldPosition = transform * SIMD4<Float>(
-                    vertex.0, vertex.1, vertex.2, 1.0
-                )
-                
-                // OBJ 포맷: v x y z
+            // 정점(Vertices) 추가
+            let vertexSource = geometry.vertices
+            let vertexCount = vertexSource.count
+            let vertexStride = vertexSource.stride
+            let vertexOffset = vertexSource.offset
+            let vertexBuffer = vertexSource.buffer
+            let vertexPointer = vertexBuffer.contents().advanced(by: vertexOffset)
+
+            for vertexIndex in 0..<vertexCount {
+                let byteOffset = vertexIndex * vertexStride
+                let basePtr = vertexPointer.advanced(by: byteOffset)
+                // Each vertex is a SIMD3<Float> (Float x 3)
+                let x = basePtr.load(as: Float.self)
+                let y = basePtr.advanced(by: MemoryLayout<Float>.size).load(as: Float.self)
+                let z = basePtr.advanced(by: MemoryLayout<Float>.size * 2).load(as: Float.self)
+
+                let worldPosition = (transform * SIMD4<Float>(x, y, z, 1.0)).xyz
                 objContent += "v \(worldPosition.x) \(worldPosition.y) \(worldPosition.z)\n"
             }
             
-            // 2. 면(Faces) 추가
+            // 면(Faces) 추가
             let faces = geometry.faces
             for faceIndex in 0..<faces.count {
                 let face = faces[faceIndex]
@@ -61,7 +70,7 @@ class MeshExpoter {
                 objContent += "f \(v1) \(v2) \(v3)\n"
             }
             
-            totalVertexCount += vertices.count
+            totalVertexCount += geometry.vertices.count
             objContent += "\n"
         }
         

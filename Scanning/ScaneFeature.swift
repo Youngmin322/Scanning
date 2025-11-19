@@ -11,6 +11,7 @@ struct ScaneFeature: Reducer {
     struct State: Equatable {
         var isScanning = false // 스캔 중인지 아닌지 확인하는 상태 변수
         var meshCount = 0 // 스캔된 메쉬 개수
+        var shouldSave = false
     }
     
     enum Action: Equatable {
@@ -18,29 +19,34 @@ struct ScaneFeature: Reducer {
         case toggleScanning
         case completeScan
         case updateMeshCount(Int)
-        case saveMeshData
     }
     
     // Action이 들어오면 State 변경을 담당하는 함수
     func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .scanButtonTapped:
-            return .send(.toggleScanning)
-            
-        case .toggleScanning:
-            state.isScanning.toggle()
-            print("스캔 상태: \(state.isScanning)")
-            return .none
-            
-        case .completeScan: state.isScanning = false
-            print("스캔 완료")
-            return .send(.saveMeshData) // 저장 엑션 전송
-            
-        case .saveMeshData:
-            return .none
-            
-        case .updateMeshCount(let count): state.meshCount = count
-            return .none
-        }
-    }
-}
+           switch action {
+           case .scanButtonTapped:
+               return .send(.toggleScanning)
+               
+           case .toggleScanning:
+               state.isScanning.toggle()
+               
+               // 스캔 시작하면 shouldSave 초기화
+               if state.isScanning {
+                   state.shouldSave = false
+               }
+               
+               print("스캔 상태: \(state.isScanning)")
+               return .none
+               
+           case .completeScan:
+               state.isScanning = false
+               state.shouldSave = true
+               print("스캔 완료")
+               return .none
+               
+           case .updateMeshCount(let count):
+               state.meshCount = count
+               return .none
+           }
+       }
+   }

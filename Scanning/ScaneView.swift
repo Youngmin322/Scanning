@@ -18,7 +18,8 @@ struct ScaneView: View {
             ZStack {
                 ARViewContainer(
                     isScanning: viewStore.isScanning,
-                    store: store
+                    store: store,
+                    shouldSave: viewStore.shouldSave
                 )
                 .edgesIgnoringSafeArea(.all)
                 
@@ -71,6 +72,7 @@ struct ScaneView: View {
 struct ARViewContainer: UIViewRepresentable {
     let isScanning: Bool
     let store: StoreOf<ScaneFeature>
+    let shouldSave: Bool
     
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -115,6 +117,11 @@ struct ARViewContainer: UIViewRepresentable {
         } else {
             print("스캔 정지")
         }
+        
+        if shouldSave && !context.coordinator.hasSaved {
+            context.coordinator.saveMeshToOBJ()
+            context.coordinator.hasSaved = true
+        }
     }
     
     func dismantleUIView(_ uiView: ARView, coordinator: ()) {
@@ -125,6 +132,7 @@ struct ARViewContainer: UIViewRepresentable {
         var isScanning = false
         var meshAnchors: [ARMeshAnchor] = [] // 수집한 메쉬 데이터를 담는 배열
         var store: StoreOf<ScaneFeature>?
+        var hasSaved = false
         
         func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
             guard isScanning else { return }
@@ -141,6 +149,17 @@ struct ARViewContainer: UIViewRepresentable {
             
             let updatedMeshAnchors = anchors.compactMap { $0 as? ARMeshAnchor }
             print("메쉬 업데이트: \(updatedMeshAnchors.count)")
+        }
+        
+        func saveMeshToOBJ() {
+            guard !meshAnchors.isEmpty else {
+                print("저장할 메쉬 없음")
+                return
+            }
+            
+            if let fileURL = MeshExporter.exportToOBJ(meshAnchors: meshAnchors) {
+                print("저장 완료: \(fileURL.lastPathComponent)")
+            }
         }
     }
 }
