@@ -63,7 +63,7 @@ struct ModelDetailView: View {
     }
 }
 
-// 🆕 SceneKit으로 OBJ 파일 표시
+// SceneKit으로 OBJ 파일 표시
 struct SceneKitView: UIViewRepresentable {
     let objPath: String
     
@@ -116,9 +116,9 @@ struct SceneKitView: UIViewRepresentable {
                 rootNode.geometry?.firstMaterial?.lightingModel = .physicallyBased
             }
             
-            print("✅ OBJ 파일 로드 성공")
+            print("OBJ 파일 로드 성공")
         } else {
-            print("❌ OBJ 파일 로드 실패: \(objPath)")
+            print("OBJ 파일 로드 실패: \(objPath)")
         }
         
         scnView.scene = scene
@@ -130,16 +130,3 @@ struct SceneKitView: UIViewRepresentable {
         // 업데이트 필요 없음
     }
 }
-
-//#Preview {
-//    NavigationStack {
-//        ModelDetailView(
-//            model: ScanModel(
-//                fileName: "test.obj",
-//                filePath: "/path/to/test.obj",
-//                meshCount: 5,
-//                vertexCount: 1000
-//            )
-//        )
-//    }
-//}
