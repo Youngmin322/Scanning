@@ -14,14 +14,14 @@ struct ModelListView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if models.isEmpty {
-                    ContentUnavailableView(
-                        "저장된 모델 없음",
-                        systemImage: "cube.transparent",
-                        description: Text("사물을 스캔하여 모델을 만들어보세요.")
-                    )
-                } else {
+            if models.isEmpty {
+                ContentUnavailableView(
+                    "저장된 모델 없음",
+                    systemImage: "cube.transparent",
+                    description: Text("사물을 스캔하여 모델을 만들어보세요.")
+                )
+            } else {
+                List {
                     ForEach(models) { model in
                         NavigationLink(destination: ModelDetailView(model: model)) {
                             HStack {
