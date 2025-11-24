@@ -83,12 +83,10 @@ struct ARViewContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
         
-        let config = ARWorldTrackingConfiguration()
-        config.sceneReconstruction = .meshWithClassification
+        let config = ARObjectScanningConfiguration()
         
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
             print("LiDAR 지원됨(Scene Reconstruction 활성화)")
-            config.sceneReconstruction = .meshWithClassification
         } else {
             print("LiDAR 지원 안 됨")
         }
@@ -100,10 +98,9 @@ struct ARViewContainer: UIViewRepresentable {
             print("scene Depth 지원 안 됨")
         }
         
-        arView.debugOptions = [.showSceneUnderstanding]
+        arView.debugOptions = [.showFeaturePoints]
         
         arView.session.delegate = context.coordinator
-        arView.session.run(config)
         
         context.coordinator.modelContext = modelContext
         
