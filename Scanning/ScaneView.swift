@@ -9,6 +9,7 @@ import SwiftUI
 import RealityKit
 import ARKit
 import ComposableArchitecture
+import SwiftData
 
 struct ScaneView: View {
     let store: StoreOf<ScaneFeature>
@@ -73,6 +74,7 @@ struct ARViewContainer: UIViewRepresentable {
     let isScanning: Bool
     let store: StoreOf<ScaneFeature>
     let shouldSave: Bool
+    @Environment(\.modelContext) private var modelContext
     
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -101,6 +103,10 @@ struct ARViewContainer: UIViewRepresentable {
         arView.debugOptions = [.showSceneUnderstanding]
         
         arView.session.delegate = context.coordinator
+        arView.session.run(config)
+        
+        context.coordinator.modelContext = modelContext
+        
         arView.session.run(config)
         
         return arView
@@ -133,6 +139,7 @@ struct ARViewContainer: UIViewRepresentable {
         var meshAnchors: [ARMeshAnchor] = [] // 수집한 메쉬 데이터를 담는 배열
         var store: StoreOf<ScaneFeature>?
         var hasSaved = false
+        var modelContext: ModelContext?
         
         func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
             guard isScanning else { return }
