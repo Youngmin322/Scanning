@@ -27,6 +27,6 @@ struct ScanningApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(for: ScanModel.self)
     }
 }
