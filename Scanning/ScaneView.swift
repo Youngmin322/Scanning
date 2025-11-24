@@ -164,8 +164,33 @@ struct ARViewContainer: UIViewRepresentable {
                 return
             }
             
-            if let fileURL = MeshExporter.exportToOBJ(meshAnchors: meshAnchors) {
-                print("저장 완료: \(fileURL.lastPathComponent)")
+            if let result = MeshExporter.exportToOBJ(meshAnchors: meshAnchors) {
+                let fileURL = result.url
+                let vertexCount = result.vertextCount
+                
+                print("파일 저장됨: \(fileURL.lastPathComponent)")
+                
+                // SwiftData에 저장
+                saveToSwiftData(fileURL: fileURL, vertextCount: vertexCount)
+            }
+        }
+        
+        private func saveToSwiftData(fileURL: URL, vertextCount: Int) {
+            guard let modelContext = modelContext else { return }
+            
+            let fileName = "Scan_\(Date().formatted(date: .numeric, time: .shortened))"
+            
+            let newModel = ScanModel(
+                fileName: fileName,
+                filePath: fileURL.path,
+                meshCount: meshAnchors.count,
+                vertextCount: vertextCount
+            )
+            
+            Task { @MainActor in
+                modelContext.insert(newModel)
+                try? modelContext.save()
+                print("SwiftData 저장 완료: \(newModel.fileName)")
             }
         }
     }

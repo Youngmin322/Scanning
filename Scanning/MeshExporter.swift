@@ -14,7 +14,7 @@ private extension SIMD4 where Scalar == Float {
 
 class MeshExporter {
     // ARMeshAnchor 배열을 obj 파일로 저장
-    static func exportToOBJ(meshAnchors: [ARMeshAnchor]) -> URL? {
+    static func exportToOBJ(meshAnchors: [ARMeshAnchor]) -> (url: URL, vertextCount: Int)? {
         guard !meshAnchors.isEmpty else {
             print("저장할 메쉬 없음")
             
@@ -74,7 +74,7 @@ class MeshExporter {
             objContent += "\n"
         }
         
-        // 파일 저장
+        // 파일 저장 로직
         let fileName = "scan_\(Date().timeIntervalSince1970).obj"
         let documentsPath = FileManager.default.urls(
             for: .documentDirectory,
@@ -89,7 +89,7 @@ class MeshExporter {
             print("통계:")
             print("   - 메쉬 개수: \(meshAnchors.count)")
             print("   - 총 정점: \(totalVertexCount)")
-            return fileURL
+            return (fileURL, totalVertexCount)
         } catch {
             print("파일 저장 실패: \(error)")
             return nil
