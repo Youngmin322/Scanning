@@ -80,22 +80,18 @@ struct ARViewContainer: UIViewRepresentable {
         Coordinator()
     }
     
+    // ScaneView.swift 파일의 ARViewContainer 구조체 내부
+        
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
-        
+    
         let config = ARObjectScanningConfiguration()
         
-        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
-            print("LiDAR 지원됨(Scene Reconstruction 활성화)")
-        } else {
-            print("LiDAR 지원 안 됨")
-        }
-        
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+        if ARObjectScanningConfiguration.supportsFrameSemantics(.sceneDepth) {
             print("Scene Depth 지원됨")
             config.frameSemantics.insert(.sceneDepth)
         } else {
-            print("scene Depth 지원 안 됨")
+            print("Scene Depth 지원 안 됨")
         }
         
         arView.debugOptions = [.showFeaturePoints]
@@ -142,6 +138,12 @@ struct ARViewContainer: UIViewRepresentable {
             guard isScanning else { return }
             
             let newMeshAnchors = anchors.compactMap { $0 as? ARMeshAnchor }
+            
+            let newObjectAnchors = anchors.compactMap { $0 as? ARObjectAnchor }
+            if !newObjectAnchors.isEmpty {
+                print("새 객체 앵커 추가: \(newObjectAnchors.count)")
+            }
+            
             meshAnchors.append(contentsOf: newMeshAnchors)
             print("새 메쉬 추가: \(newMeshAnchors.count), 총: \(meshAnchors.count)개")
             
