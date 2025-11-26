@@ -44,8 +44,28 @@ struct ModelListView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    .onDelete(perform: deleteModels)
                 }
             }
+        }
+        .navigationTitle("내 라이브러리")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                EditButton()
+            }
+        }
+    }
+    
+    private func deleteModels(at offsets: IndexSet) {
+        withAnimation {
+            for index in offsets {
+                let model = models[index]
+                
+                deleteFile(at: model.filePath)
+                modelContext.delete(model)
+            }
+            
+            try? modelContext.save()
         }
     }
     
