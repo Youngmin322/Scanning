@@ -128,10 +128,7 @@ struct ARViewContainer: UIViewRepresentable {
             context.coordinator.hasSaved = true
             // 저장 후 앵커 데이터 및 TCA 상태 초기화
             context.coordinator.meshAnchors.removeAll()
-            Task { @MainActor in
-                context.coordinator.store?.send(.updateMeshCount(0))
-                
-            }
+            context.coordinator.store?.send(.updateMeshCount(0))
         }
     }
     

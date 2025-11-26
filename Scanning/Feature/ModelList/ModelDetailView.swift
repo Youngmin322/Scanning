@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SceneKit
+import UIKit
 
 struct ModelDetailView: View {
     let model: ScanModel
@@ -24,7 +25,7 @@ struct ModelDetailView: View {
                     description: Text(error)
                 )
             } else {
-                SceneKitView(objPath: model.filePath)
+                SceneKitView(modelPath: model.filePath)
                     .edgesIgnoringSafeArea(.all)
             }
         }
@@ -38,11 +39,10 @@ struct ModelDetailView: View {
             }
         }
         .task {
-            // 파일 존재 확인
             if FileManager.default.fileExists(atPath: model.filePath) {
                 isLoading = false
             } else {
-                loadError = "파일을 찾을 수 없습니다"
+                loadError = "파일을 찾을 수 없습니다: \(model.filePath)"
                 isLoading = false
             }
         }
@@ -63,9 +63,8 @@ struct ModelDetailView: View {
     }
 }
 
-// SceneKit으로 OBJ 파일 표시
 struct SceneKitView: UIViewRepresentable {
-    let objPath: String
+    let modelPath: String
     
     func makeUIView(context: Context) -> SCNView {
         let scnView = SCNView()
@@ -74,18 +73,15 @@ struct SceneKitView: UIViewRepresentable {
         scnView.autoenablesDefaultLighting = true  // 자동 조명
         scnView.showsStatistics = true  // FPS 등 통계 표시
         
-        // Scene 생성
         let scene = SCNScene()
         
-        // OBJ 파일 로드
-        if let objURL = URL(string: "file://\(objPath)"),
-           let objScene = try? SCNScene(url: objURL, options: nil) {
+        // OBJ/USDZ 파일 로드
+        if let modelURL = URL(string: "file://\(modelPath)"),
+           let loadedScene = try? SCNScene(url: modelURL, options: nil) {
             
-            // OBJ의 모든 노드를 메인 씬에 추가
-            if let rootNode = objScene.rootNode.childNodes.first {
+            if let rootNode = loadedScene.rootNode.childNodes.first {
                 scene.rootNode.addChildNode(rootNode)
                 
-                // 모델 중심으로 카메라 배치
                 let (minVec, maxVec) = rootNode.boundingBox
                 let center = SCNVector3(
                     (minVec.x + maxVec.x) / 2,
@@ -110,15 +106,11 @@ struct SceneKitView: UIViewRepresentable {
                 )
                 cameraNode.look(at: center)
                 scene.rootNode.addChildNode(cameraNode)
-                
-                // Material 설정 (회색)
-                rootNode.geometry?.firstMaterial?.diffuse.contents = UIColor.gray
-                rootNode.geometry?.firstMaterial?.lightingModel = .physicallyBased
             }
             
-            print("OBJ 파일 로드 성공")
+            print("모델 파일 로드 성공: \(modelURL.lastPathComponent)")
         } else {
-            print("OBJ 파일 로드 실패: \(objPath)")
+            print("모델 파일 로드 실패: \(modelPath)")
         }
         
         scnView.scene = scene
@@ -127,6 +119,5 @@ struct SceneKitView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: SCNView, context: Context) {
-        // 업데이트 필요 없음
     }
 }

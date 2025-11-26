@@ -32,7 +32,8 @@ struct ModelListView: View {
                                     
                                     Spacer()
                                     
-                                    Text("\(model.meshCount) Meshes")
+                                    // 캡처된 이미지 수로 표시
+                                    Text("\(model.meshCount) Images Captured")
                                         .font(.caption2)
                                         .padding(4)
                                         .background(.secondary.opacity(0.2))
@@ -44,40 +45,15 @@ struct ModelListView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                    .onDelete(perform: deleteModels)
+                    .onDelete(perform: deleteItems)
                 }
             }
         }
-        .navigationTitle("내 라이브러리")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                EditButton()
-            }
-        }
     }
     
-    private func deleteModels(at offsets: IndexSet) {
+    private func deleteItems(offsets: IndexSet) {
         withAnimation {
-            for index in offsets {
-                let model = models[index]
-                
-                deleteFile(at: model.filePath)
-                modelContext.delete(model)
-            }
-            
-            try? modelContext.save()
-        }
-    }
-    
-    private func deleteFile(at path: String) {
-        let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: path) {
-            do {
-                try fileManager.removeItem(atPath: path)
-                print("파일 삭제 완료")
-            } catch {
-                print("삭제 실패 \(error)")
-            }
+            offsets.map { models[$0] }.forEach(modelContext.delete)
         }
     }
 }
