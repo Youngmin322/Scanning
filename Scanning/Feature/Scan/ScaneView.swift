@@ -35,7 +35,7 @@ struct ScaneView: View {
                                 .cornerRadius(8)
                             
                             HStack {
-                                Text("스캔된 앵커: \(viewStore.meshCount)")
+                                Text("스캔 진행 중: \(viewStore.meshCount > 0 ? "✓" : "...")")
                                     .font(.headline)
                                     .padding()
                                     .background(.ultraThinMaterial)
@@ -92,15 +92,20 @@ struct ARViewContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
         
-        // 🛠️ 수정 1: ARObjectScanningConfiguration으로 오타 수정
+        // ✅ ARObjectScanningConfiguration 사용 (iOS 12+에서 지원됨)
         let config = ARObjectScanningConfiguration()
+        config.planeDetection = .horizontal
         
-        arView.debugOptions = []
+        arView.debugOptions = [
+            .showFeaturePoints,
+            .showWorldOrigin
+        ]
         
         arView.session.delegate = context.coordinator
         
         context.coordinator.modelContext = modelContext
         context.coordinator.arSession = arView.session
+        context.coordinator.arView = arView
         
         arView.session.run(config)
         
@@ -110,88 +115,94 @@ struct ARViewContainer: UIViewRepresentable {
     func updateUIView(_ uiView: ARView, context: Context) {
         print("ARview 업데이트: isScanning = \(isScanning)")
         
+        let wasScanning = context.coordinator.isScanning
         context.coordinator.isScanning = isScanning
         context.coordinator.store = store
         
-        if isScanning {
-            print("스캔 중. ARObjectAnchor 수집 활성화.")
-        } else {
-            print("스캔 정지. ARObjectAnchor 수집 비활성화.")
+        // ✅ 스캔 시작/정지 시 초기화
+        if isScanning && !wasScanning {
+            context.coordinator.hasSaved = false
+            print("스캔 시작")
         }
         
+        if !isScanning && wasScanning {
+            print("스캔 정지")
+        }
+        
+        // ✅ 저장 트리거
         if shouldSave && !context.coordinator.hasSaved {
             context.coordinator.saveMeshToOBJ()
             context.coordinator.hasSaved = true
         }
     }
     
-    func dismantleUIView(_ uiView: ARView, coordinator: ()) {
+    func dismantleUIView(_ uiView: ARView, coordinator: Coordinator) {
         uiView.session.pause()
     }
     
     class Coordinator: NSObject, ARSessionDelegate {
         var isScanning = false
-        var currentObjectAnchor: ARObjectAnchor? // 수집된 물체 앵커
+        var currentFrame: ARFrame?
         var store: StoreOf<ScaneFeature>?
         var hasSaved = false
         var modelContext: ModelContext?
         var arSession: ARSession?
+        var arView: ARView?
         
-        func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+        // ✅ ARFrame 업데이트를 통해 스캔 진행 상황 추적
+        func session(_ session: ARSession, didUpdate frame: ARFrame) {
             guard isScanning else { return }
             
-            let newObjectAnchors = anchors.compactMap { $0 as? ARObjectAnchor }
+            currentFrame = frame
             
-            if let firstAnchor = newObjectAnchors.first {
-                currentObjectAnchor = firstAnchor
-                print("물체 앵커 감지 및 추가됨: \(firstAnchor.identifier)")
-                store?.send(.updateMeshCount(1))
+            // Feature points 수로 스캔 진행 상황 표시
+            let featurePointsCount = frame.rawFeaturePoints?.points.count ?? 0
+            
+            if featurePointsCount > 0 {
+                Task { @MainActor in
+                    // Feature points가 충분히 수집되었음을 알림
+                    self.store?.send(.updateMeshCount(1))
+                }
             }
         }
         
-        func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
-            guard isScanning else { return }
-            
-            let updatedObjectAnchors = anchors.compactMap { $0 as? ARObjectAnchor }
-            
-            if let updatedAnchor = updatedObjectAnchors.first, updatedAnchor.identifier == currentObjectAnchor?.identifier {
-                currentObjectAnchor = updatedAnchor
-            }
-            
-            if currentObjectAnchor != nil {
-                store?.send(.updateMeshCount(1))
-            } else {
-                store?.send(.updateMeshCount(0))
+        // ✅ 실제 ARObjectAnchor가 추가될 때 (스캔 완료 후 감지 시)
+        func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+            let objectAnchors = anchors.compactMap { $0 as? ARObjectAnchor }
+            if !objectAnchors.isEmpty {
+                print("ARObjectAnchor 감지됨: \(objectAnchors.count)개")
             }
         }
         
         func saveMeshToOBJ() {
-            guard let arSession = arSession, let currentAnchor = currentObjectAnchor else {
-                print("저장할 ARObjectAnchor가 없거나 ARSession에 접근 불가")
-                
+            guard let arSession = arSession, let currentFrame = currentFrame else {
+                print("저장할 ARFrame이 없습니다")
                 Task { @MainActor in
                     self.store?.send(.updateMeshCount(0))
                 }
                 return
             }
             
-            let centerSimd4 = currentAnchor.transform.columns.3
+            print("스캔 데이터 저장 시작")
+            
+            // ✅ 카메라 위치를 중심으로 일정 영역의 reference object 생성
+            let cameraTransform = currentFrame.camera.transform
+            let centerSimd4 = cameraTransform.columns.3
             let centerSimd3 = SIMD3<Float>(centerSimd4.x, centerSimd4.y, centerSimd4.z)
             
-            let transform = currentAnchor.transform
+            // ✅ 스캔할 물체의 크기 설정 (필요에 따라 조정)
+            let extent: SIMD3<Float> = SIMD3<Float>(0.3, 0.3, 0.3) // 30cm x 30cm x 30cm
             
-            let defaultExtent: SIMD3<Float> = SIMD3<Float>(0.4, 0.4, 0.4)
-            
+            // ✅ createReferenceObject 호출
             arSession.createReferenceObject(
-                transform: transform,
+                transform: cameraTransform,
                 center: centerSimd3,
-                extent: defaultExtent,
+                extent: extent,
                 completionHandler: { [weak self] (refObject, error) in
                     guard let self = self else { return }
                     
                     if let error = error {
                         print("ARReferenceObject 생성 실패: \(error.localizedDescription)")
-                        
                         Task { @MainActor in
                             self.store?.send(.updateMeshCount(0))
                         }
@@ -200,13 +211,13 @@ struct ARViewContainer: UIViewRepresentable {
                     
                     guard let refObject = refObject else {
                         print("ARReferenceObject 생성 실패: 결과 없음")
-                        
                         Task { @MainActor in
                             self.store?.send(.updateMeshCount(0))
                         }
                         return
                     }
                     
+                    // ✅ .arobject 파일로 저장
                     let fileName = "scan_\(Date().timeIntervalSince1970).arobject"
                     let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                     let fileURL = documentsPath.appendingPathComponent(fileName)
@@ -218,15 +229,14 @@ struct ARViewContainer: UIViewRepresentable {
                         Task { @MainActor in
                             self.saveToSwiftData(
                                 fileURL: fileURL,
-                                vertextCount: 0
+                                featurePointsCount: currentFrame.rawFeaturePoints?.points.count ?? 0
                             )
-                            self.currentObjectAnchor = nil
+                            self.currentFrame = nil
                             self.store?.send(.updateMeshCount(0))
                         }
                         
                     } catch {
                         print("ARObject 저장 실패: \(error)")
-                        
                         Task { @MainActor in
                             self.store?.send(.updateMeshCount(0))
                         }
@@ -235,8 +245,7 @@ struct ARViewContainer: UIViewRepresentable {
             )
         }
         
-        
-        private func saveToSwiftData(fileURL: URL, vertextCount: Int) {
+        private func saveToSwiftData(fileURL: URL, featurePointsCount: Int) {
             guard let modelContext = modelContext else { return }
             
             let dateString = Date().formatted(date: .numeric, time: .shortened)
@@ -249,8 +258,8 @@ struct ARViewContainer: UIViewRepresentable {
             let newModel = ScanModel(
                 fileName: fileName,
                 filePath: fileURL.path,
-                meshCount: 1, // ARObject 앵커가 존재함을 나타내는 1로 설정
-                vertextCount: vertextCount
+                meshCount: 1,
+                vertextCount: featurePointsCount
             )
             
             Task { @MainActor in
@@ -261,4 +270,3 @@ struct ARViewContainer: UIViewRepresentable {
         }
     }
 }
-
