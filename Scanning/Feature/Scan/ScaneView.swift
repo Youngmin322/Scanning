@@ -1,8 +1,8 @@
 //
-//  ScaneView.swift
-//  Scanning
+//  ScaneView.swift
+//  Scanning
 //
-//  Created by Youngmin Cho on 11/15/25.
+//  Created by Youngmin Cho on 11/15/25.
 //
 
 import SwiftUI
@@ -26,12 +26,21 @@ struct ScaneView: View {
                 
                 VStack {
                     if viewStore.isScanning {
-                        HStack {
-                            Text("스캔된 메쉬: \(viewStore.meshCount)")
-                                .font(.headline)
-                                .padding()
-                                .background(.ultraThinMaterial)
-                                .cornerRadius(10)
+                        VStack(spacing: 8) {
+                            Text("물체를 중심으로 천천히 움직이며 스캔하세요.")
+                                .font(.subheadline)
+                                .foregroundColor(.white)
+                                .padding(8)
+                                .background(.black.opacity(0.6))
+                                .cornerRadius(8)
+                            
+                            HStack {
+                                Text("스캔된 앵커: \(viewStore.meshCount)")
+                                    .font(.headline)
+                                    .padding()
+                                    .background(.ultraThinMaterial)
+                                    .cornerRadius(10)
+                            }
                         }
                         .padding(.top, 50)
                     }
@@ -83,23 +92,10 @@ struct ARViewContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
         
-        let config = ARWorldTrackingConfiguration()
+        // 🛠️ 수정 1: ARObjectScanningConfiguration으로 오타 수정
+        let config = ARObjectScanningConfiguration()
         
-        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
-            config.sceneReconstruction = .mesh
-            print("Scene Reconstruction (.mesh) 지원됨")
-        } else {
-            print("Scene Reconstruction (.mesh) 지원 안 됨")
-        }
-        
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
-            print("Scene Depth 지원됨")
-            config.frameSemantics.insert(.sceneDepth)
-        } else {
-            print("Scene Depth 지원 안 됨")
-        }
-        
-        arView.debugOptions = [.showFeaturePoints, .showSceneUnderstanding]
+        arView.debugOptions = []
         
         arView.session.delegate = context.coordinator
         
@@ -118,19 +114,14 @@ struct ARViewContainer: UIViewRepresentable {
         context.coordinator.store = store
         
         if isScanning {
-            print("스캔 중. 메쉬 수집 활성화.")
+            print("스캔 중. ARObjectAnchor 수집 활성화.")
         } else {
-            print("스캔 정지. 메쉬 수집 비활성화.")
+            print("스캔 정지. ARObjectAnchor 수집 비활성화.")
         }
         
         if shouldSave && !context.coordinator.hasSaved {
             context.coordinator.saveMeshToOBJ()
             context.coordinator.hasSaved = true
-            // 저장 후 앵커 데이터 및 TCA 상태 초기화
-            context.coordinator.meshAnchors.removeAll()
-            Task { @MainActor in
-                context.coordinator.store?.send(.updateMeshCount(0))
-            }
         }
     }
     
@@ -140,59 +131,110 @@ struct ARViewContainer: UIViewRepresentable {
     
     class Coordinator: NSObject, ARSessionDelegate {
         var isScanning = false
-        var meshAnchors: [ARMeshAnchor] = [] // 수집한 메쉬 데이터를 담는 배열
+        var currentObjectAnchor: ARObjectAnchor? // 수집된 물체 앵커
         var store: StoreOf<ScaneFeature>?
         var hasSaved = false
         var modelContext: ModelContext?
-        var arSession: ARSession? // ARSession 참조 추가
+        var arSession: ARSession?
         
         func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
             guard isScanning else { return }
             
-            let newMeshAnchors = anchors.compactMap { $0 as? ARMeshAnchor }
+            let newObjectAnchors = anchors.compactMap { $0 as? ARObjectAnchor }
             
-            if !newMeshAnchors.isEmpty {
-                meshAnchors.append(contentsOf: newMeshAnchors)
-                print("새 메쉬 추가: \(newMeshAnchors.count), 총: \(meshAnchors.count)개")
-                store?.send(.updateMeshCount(meshAnchors.count))
+            if let firstAnchor = newObjectAnchors.first {
+                currentObjectAnchor = firstAnchor
+                print("물체 앵커 감지 및 추가됨: \(firstAnchor.identifier)")
+                store?.send(.updateMeshCount(1))
             }
         }
         
         func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
             guard isScanning else { return }
             
-            let updatedMeshAnchors = anchors.compactMap { $0 as? ARMeshAnchor }
+            let updatedObjectAnchors = anchors.compactMap { $0 as? ARObjectAnchor }
             
-            for updatedAnchor in updatedMeshAnchors {
-                if let index = meshAnchors.firstIndex(where: { $0.identifier == updatedAnchor.identifier }) {
-                    meshAnchors[index] = updatedAnchor
-                } else {
-                    meshAnchors.append(updatedAnchor)
-                }
+            if let updatedAnchor = updatedObjectAnchors.first, updatedAnchor.identifier == currentObjectAnchor?.identifier {
+                currentObjectAnchor = updatedAnchor
             }
             
-            if !updatedMeshAnchors.isEmpty {
+            if currentObjectAnchor != nil {
+                store?.send(.updateMeshCount(1))
+            } else {
+                store?.send(.updateMeshCount(0))
             }
-            
-            store?.send(.updateMeshCount(meshAnchors.count))
         }
         
         func saveMeshToOBJ() {
-            guard !meshAnchors.isEmpty else {
-                print("저장할 메쉬 없음")
+            guard let arSession = arSession, let currentAnchor = currentObjectAnchor else {
+                print("저장할 ARObjectAnchor가 없거나 ARSession에 접근 불가")
+                
+                Task { @MainActor in
+                    self.store?.send(.updateMeshCount(0))
+                }
                 return
             }
             
-            if let result = MeshExporter.exportToOBJ(meshAnchors: meshAnchors) {
-                let fileURL = result.url
-                let vertexCount = result.vertextCount
-                
-                print("파일 저장됨: \(fileURL.lastPathComponent)")
-                
-                // SwiftData에 저장
-                saveToSwiftData(fileURL: fileURL, vertextCount: vertexCount)
-            }
+            let centerSimd4 = currentAnchor.transform.columns.3
+            let centerSimd3 = SIMD3<Float>(centerSimd4.x, centerSimd4.y, centerSimd4.z)
+            
+            let transform = currentAnchor.transform
+            
+            let defaultExtent: SIMD3<Float> = SIMD3<Float>(0.4, 0.4, 0.4)
+            
+            arSession.createReferenceObject(
+                transform: transform,
+                center: centerSimd3,
+                extent: defaultExtent,
+                completionHandler: { [weak self] (refObject, error) in
+                    guard let self = self else { return }
+                    
+                    if let error = error {
+                        print("ARReferenceObject 생성 실패: \(error.localizedDescription)")
+                        
+                        Task { @MainActor in
+                            self.store?.send(.updateMeshCount(0))
+                        }
+                        return
+                    }
+                    
+                    guard let refObject = refObject else {
+                        print("ARReferenceObject 생성 실패: 결과 없음")
+                        
+                        Task { @MainActor in
+                            self.store?.send(.updateMeshCount(0))
+                        }
+                        return
+                    }
+                    
+                    let fileName = "scan_\(Date().timeIntervalSince1970).arobject"
+                    let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    let fileURL = documentsPath.appendingPathComponent(fileName)
+                    
+                    do {
+                        try refObject.export(to: fileURL, previewImage: nil)
+                        print(".arobject 파일 저장 완료: \(fileURL.path)")
+                        
+                        Task { @MainActor in
+                            self.saveToSwiftData(
+                                fileURL: fileURL,
+                                vertextCount: 0
+                            )
+                            self.currentObjectAnchor = nil
+                            self.store?.send(.updateMeshCount(0))
+                        }
+                        
+                    } catch {
+                        print("ARObject 저장 실패: \(error)")
+                        
+                        Task { @MainActor in
+                            self.store?.send(.updateMeshCount(0))
+                        }
+                    }
+                }
+            )
         }
+        
         
         private func saveToSwiftData(fileURL: URL, vertextCount: Int) {
             guard let modelContext = modelContext else { return }
@@ -201,12 +243,13 @@ struct ARViewContainer: UIViewRepresentable {
                 .replacingOccurrences(of: "/", with: "-")
                 .replacingOccurrences(of: ":", with: "")
                 .replacingOccurrences(of: " ", with: "_")
-            let fileName = "Scan_\(dateString)"
+            
+            let fileName = "Scan_\(dateString).arobject"
             
             let newModel = ScanModel(
                 fileName: fileName,
                 filePath: fileURL.path,
-                meshCount: meshAnchors.count,
+                meshCount: 1, // ARObject 앵커가 존재함을 나타내는 1로 설정
                 vertextCount: vertextCount
             )
             
@@ -218,3 +261,4 @@ struct ARViewContainer: UIViewRepresentable {
         }
     }
 }
+

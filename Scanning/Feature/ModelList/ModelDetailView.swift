@@ -8,27 +8,63 @@
 import SwiftUI
 import SceneKit
 import UIKit
+import SwiftData
 
 struct ModelDetailView: View {
     let model: ScanModel
-    @State private var isLoading = true
-    @State private var loadError: String?
     
     var body: some View {
-        ZStack {
-            if isLoading {
-                ProgressView("모델 로딩 중...")
-            } else if let error = loadError {
-                ContentUnavailableView(
-                    "로딩 실패",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(error)
-                )
+        VStack(alignment: .leading, spacing: 20) {
+            
+            if model.filePath.hasSuffix(".arobject") {
+                Text("파일 유형: AR Reference Object (.arobject)")
+                    .font(.title3)
+                    .bold()
+                    .foregroundColor(.orange)
+                
+                Text("이 파일은 AR 세션에서 물체를 인식하기 위한 메타데이터 파일입니다. 3D 모델(.obj) 파일이 아니므로, 현재 앱에서는 3D 뷰어로 직접 표시할 수 없습니다.")
+                    .font(.body)
+                    .padding(.bottom)
+                
+                Divider()
+                
             } else {
                 SceneKitView(modelPath: model.filePath)
-                    .edgesIgnoringSafeArea(.all)
+                    .frame(height: 300)
+                    .cornerRadius(10)
+                    .padding()
             }
+            
+            // 모델 정보 표시
+            HStack {
+                Text("파일 이름:")
+                    .bold()
+                Spacer()
+                Text(model.fileName)
+            }
+            HStack {
+                Text("경로:")
+                    .bold()
+                Spacer()
+                Text(model.filePath)
+                    .lineLimit(1)
+            }
+            HStack {
+                Text("생성일:")
+                    .bold()
+                Spacer()
+                Text(model.createdAt.formatted(date: .abbreviated, time: .shortened))
+            }
+            HStack {
+                Text("저장된 앵커/메쉬:")
+                    .bold()
+                Spacer()
+                Text("\(model.meshCount) 개")
+            }
+            
+            Spacer()
         }
+        .padding()
         .navigationTitle(model.fileName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -36,14 +72,6 @@ struct ModelDetailView: View {
                 Button(action: shareModel) {
                     Image(systemName: "square.and.arrow.up")
                 }
-            }
-        }
-        .task {
-            if FileManager.default.fileExists(atPath: model.filePath) {
-                isLoading = false
-            } else {
-                loadError = "파일을 찾을 수 없습니다: \(model.filePath)"
-                isLoading = false
             }
         }
     }
@@ -56,9 +84,8 @@ struct ModelDetailView: View {
         )
         
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first,
-           let rootVC = window.rootViewController {
-            rootVC.present(activityVC, animated: true)
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            rootViewController.present(activityVC, animated: true, completion: nil)
         }
     }
 }
