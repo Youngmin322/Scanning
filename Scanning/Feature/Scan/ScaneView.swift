@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  ScaneView.swift
 //  Scanning
 //
 //  Created by Youngmin Cho on 11/15/25.
@@ -9,6 +9,7 @@ import SwiftUI
 import RealityKit
 import ARKit
 import ComposableArchitecture
+import SwiftData
 
 struct ScaneView: View {
     let store: StoreOf<ScaneFeature>
@@ -73,6 +74,7 @@ struct ARViewContainer: UIViewRepresentable {
     let isScanning: Bool
     let store: StoreOf<ScaneFeature>
     let shouldSave: Bool
+    @Environment(\.modelContext) private var modelContext
     
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -82,25 +84,28 @@ struct ARViewContainer: UIViewRepresentable {
         let arView = ARView(frame: .zero)
         
         let config = ARWorldTrackingConfiguration()
-        config.sceneReconstruction = .meshWithClassification
         
-        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
-            print("LiDAR 지원됨(Scene Reconstruction 활성화)")
-            config.sceneReconstruction = .meshWithClassification
+        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+            config.sceneReconstruction = .mesh
+            print("Scene Reconstruction (.mesh) 지원됨")
         } else {
-            print("LiDAR 지원 안 됨")
+            print("Scene Reconstruction (.mesh) 지원 안 됨")
         }
         
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
             print("Scene Depth 지원됨")
             config.frameSemantics.insert(.sceneDepth)
         } else {
-            print("scene Depth 지원 안 됨")
+            print("Scene Depth 지원 안 됨")
         }
         
-        arView.debugOptions = [.showSceneUnderstanding]
+        arView.debugOptions = [.showFeaturePoints, .showSceneUnderstanding]
         
         arView.session.delegate = context.coordinator
+        
+        context.coordinator.modelContext = modelContext
+        context.coordinator.arSession = arView.session
+        
         arView.session.run(config)
         
         return arView
@@ -113,14 +118,20 @@ struct ARViewContainer: UIViewRepresentable {
         context.coordinator.store = store
         
         if isScanning {
-            print("스캔 시작")
+            print("스캔 중. 메쉬 수집 활성화.")
         } else {
-            print("스캔 정지")
+            print("스캔 정지. 메쉬 수집 비활성화.")
         }
         
         if shouldSave && !context.coordinator.hasSaved {
             context.coordinator.saveMeshToOBJ()
             context.coordinator.hasSaved = true
+            // 저장 후 앵커 데이터 및 TCA 상태 초기화
+            context.coordinator.meshAnchors.removeAll()
+            Task { @MainActor in
+                context.coordinator.store?.send(.updateMeshCount(0))
+                
+            }
         }
     }
     
@@ -133,22 +144,38 @@ struct ARViewContainer: UIViewRepresentable {
         var meshAnchors: [ARMeshAnchor] = [] // 수집한 메쉬 데이터를 담는 배열
         var store: StoreOf<ScaneFeature>?
         var hasSaved = false
+        var modelContext: ModelContext?
+        var arSession: ARSession? // ARSession 참조 추가
         
         func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
             guard isScanning else { return }
             
             let newMeshAnchors = anchors.compactMap { $0 as? ARMeshAnchor }
-            meshAnchors.append(contentsOf: newMeshAnchors)
-            print("새 메쉬 추가: \(newMeshAnchors.count), 총: \(meshAnchors.count)개")
             
-            store?.send(.updateMeshCount(meshAnchors.count))
+            if !newMeshAnchors.isEmpty {
+                meshAnchors.append(contentsOf: newMeshAnchors)
+                print("새 메쉬 추가: \(newMeshAnchors.count), 총: \(meshAnchors.count)개")
+                store?.send(.updateMeshCount(meshAnchors.count))
+            }
         }
         
         func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
             guard isScanning else { return }
             
             let updatedMeshAnchors = anchors.compactMap { $0 as? ARMeshAnchor }
-            print("메쉬 업데이트: \(updatedMeshAnchors.count)")
+            
+            for updatedAnchor in updatedMeshAnchors {
+                if let index = meshAnchors.firstIndex(where: { $0.identifier == updatedAnchor.identifier }) {
+                    meshAnchors[index] = updatedAnchor
+                } else {
+                    meshAnchors.append(updatedAnchor)
+                }
+            }
+            
+            if !updatedMeshAnchors.isEmpty {
+            }
+            
+            store?.send(.updateMeshCount(meshAnchors.count))
         }
         
         func saveMeshToOBJ() {
@@ -157,13 +184,38 @@ struct ARViewContainer: UIViewRepresentable {
                 return
             }
             
-            if let fileURL = MeshExporter.exportToOBJ(meshAnchors: meshAnchors) {
-                print("저장 완료: \(fileURL.lastPathComponent)")
+            if let result = MeshExporter.exportToOBJ(meshAnchors: meshAnchors) {
+                let fileURL = result.url
+                let vertexCount = result.vertextCount
+                
+                print("파일 저장됨: \(fileURL.lastPathComponent)")
+                
+                // SwiftData에 저장
+                saveToSwiftData(fileURL: fileURL, vertextCount: vertexCount)
+            }
+        }
+        
+        private func saveToSwiftData(fileURL: URL, vertextCount: Int) {
+            guard let modelContext = modelContext else { return }
+            
+            let dateString = Date().formatted(date: .numeric, time: .shortened)
+                .replacingOccurrences(of: "/", with: "-")
+                .replacingOccurrences(of: ":", with: "")
+                .replacingOccurrences(of: " ", with: "_")
+            let fileName = "Scan_\(dateString)"
+            
+            let newModel = ScanModel(
+                fileName: fileName,
+                filePath: fileURL.path,
+                meshCount: meshAnchors.count,
+                vertextCount: vertextCount
+            )
+            
+            Task { @MainActor in
+                modelContext.insert(newModel)
+                try? modelContext.save()
+                print("SwiftData 저장 완료: \(newModel.fileName)")
             }
         }
     }
-}
-
-#Preview {
-    ContentView()
 }

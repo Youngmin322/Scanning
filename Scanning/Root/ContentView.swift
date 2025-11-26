@@ -21,7 +21,7 @@ struct ContentView: View {
             
             Tab("모델", systemImage: "cube.fill") {
                 NavigationStack {
-                    EmptyView()
+                ModelListView()
                 }
             }
         }
