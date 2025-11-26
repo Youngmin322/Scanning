@@ -48,4 +48,16 @@ struct ModelListView: View {
             }
         }
     }
+    
+    private func deleteFile(at path: String) {
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: path) {
+            do {
+                try fileManager.removeItem(atPath: path)
+                print("파일 삭제 완료")
+            } catch {
+                print("삭제 실패 \(error)")
+            }
+        }
+    }
 }
