@@ -26,9 +26,8 @@ struct ScaneView: View {
                 
                 VStack {
                     if viewStore.isScanning {
-                        
                         VStack(spacing: 8) {
-                            Text("물체를 중심으로 천천히 움직이며 스캔하세요.")
+                            Text(viewStore.statusMessage)
                                 .font(.subheadline)
                                 .foregroundColor(.white)
                                 .padding(8)
@@ -36,7 +35,7 @@ struct ScaneView: View {
                                 .cornerRadius(8)
                             
                             HStack {
-                                Text("스캔 진행 중: \(viewStore.meshCount > 0 ? "✓" : "...")")
+                                Text("메쉬 카운트 \(viewStore.meshCount)")
                                     .font(.headline)
                                     .padding()
                                     .background(.ultraThinMaterial)
@@ -98,7 +97,8 @@ struct ARViewContainer: UIViewRepresentable {
         
         arView.debugOptions = [
             .showFeaturePoints,
-            .showWorldOrigin
+            .showWorldOrigin,
+            .showSceneUnderstanding
         ]
         
         arView.session.delegate = context.coordinator
@@ -151,18 +151,44 @@ struct ARViewContainer: UIViewRepresentable {
         
         // ARFrame 업데이트를 통해 스캔 진행 상황 추적
         func session(_ session: ARSession, didUpdate frame: ARFrame) {
-            guard isScanning else { return }
+            guard isScanning, let store = self.store else { return }
             
             currentFrame = frame
             
-            // Feature points 수로 스캔 진행 상황 표시
+            // 스캔 품질 피드백: ARKit이 제공하는 trackingState와 특징점 개수를 활용
+            let trackingState = frame.camera.trackingState
             let featurePointsCount = frame.rawFeaturePoints?.points.count ?? 0
-            
-            if featurePointsCount > 0 {
-                Task { @MainActor in
-                    // Feature points가 충분히 수집되었음을 알림
-                    self.store?.send(.updateMeshCount(1))
+            let qualityMessage: String
+
+            switch trackingState {
+            case .notAvailable:
+                qualityMessage = "트래킹 불가: 밝은 환경에서 다시 시도하세요."
+            case .limited(let reason):
+                switch reason {
+                case .initializing:
+                    qualityMessage = "초기화 중: 기기를 천천히 움직여주세요."
+                case .relocalizing:
+                    qualityMessage = "위치 재탐색 중: 이전 위치로 돌아가거나 주변을 더 스캔하세요."
+                case .excessiveMotion:
+                    qualityMessage = "과도한 움직임: 기기를 천천히 움직이세요."
+                case .insufficientFeatures:
+                    qualityMessage = "특징점 부족: 텍스처가 있는 물체와 밝은 환경에서 스캔하세요."
+                @unknown default:
+                    qualityMessage = "트래킹 제한: 주변을 더 스캔하세요."
                 }
+            case .normal:
+                if featurePointsCount < 200 {
+                    qualityMessage = "특징점 적음: 물체에 가까이 다가가고 다양한 각도에서 스캔하세요."
+                } else if featurePointsCount < 800 {
+                    qualityMessage = "중간 품질: 더 다양한 각도에서 스캔하여 메쉬를 채우세요."
+                } else {
+                    qualityMessage = "고품질: 스캔 완료 가능. 정지하고 '완료' 버튼을 누르세요."
+                }
+            }
+
+            Task { @MainActor in
+                store.send(.updateStatusMessage(qualityMessage))
+                store.send(.updateMeshCount(featurePointsCount))
             }
         }
         
@@ -178,7 +204,7 @@ struct ARViewContainer: UIViewRepresentable {
             guard let arSession = arSession, let currentFrame = currentFrame else {
                 print("저장할 ARFrame이 없습니다")
                 Task { @MainActor in
-                    self.store?.send(.updateMeshCount(0))
+                    store?.send(.updateStatusMessage("저장할 데이터 없음"))
                 }
                 return
             }
@@ -204,7 +230,7 @@ struct ARViewContainer: UIViewRepresentable {
                     if let error = error {
                         print("ARReferenceObject 생성 실패: \(error.localizedDescription)")
                         Task { @MainActor in
-                            self.store?.send(.updateMeshCount(0))
+                            self.store?.send(.updateStatusMessage("ARReferenceObject 생성 실패: \(error.localizedDescription)"))
                         }
                         return
                     }
@@ -232,13 +258,13 @@ struct ARViewContainer: UIViewRepresentable {
                                 featurePointsCount: currentFrame.rawFeaturePoints?.points.count ?? 0
                             )
                             self.currentFrame = nil
-                            self.store?.send(.updateMeshCount(0))
+                            self.store?.send(.updateStatusMessage("저장 완료."))
                         }
                         
                     } catch {
                         print("ARObject 저장 실패: \(error)")
                         Task { @MainActor in
-                            self.store?.send(.updateMeshCount(0))
+                            self.store?.send(.updateStatusMessage("ARObject 저장 실패: \(error.localizedDescription)"))
                         }
                     }
                 }

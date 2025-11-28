@@ -9,6 +9,7 @@ import SwiftUI
 import SceneKit
 import UIKit
 import SwiftData
+import ARKit
 
 struct ModelDetailView: View {
     let model: ScanModel
