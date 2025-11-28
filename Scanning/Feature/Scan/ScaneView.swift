@@ -26,6 +26,7 @@ struct ScaneView: View {
                 
                 VStack {
                     if viewStore.isScanning {
+                        
                         VStack(spacing: 8) {
                             Text("물체를 중심으로 천천히 움직이며 스캔하세요.")
                                 .font(.subheadline)
@@ -92,7 +93,6 @@ struct ARViewContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
         
-        // ✅ ARObjectScanningConfiguration 사용 (iOS 12+에서 지원됨)
         let config = ARObjectScanningConfiguration()
         config.planeDetection = .horizontal
         
@@ -119,7 +119,7 @@ struct ARViewContainer: UIViewRepresentable {
         context.coordinator.isScanning = isScanning
         context.coordinator.store = store
         
-        // ✅ 스캔 시작/정지 시 초기화
+        // 스캔 시작/정지 시 초기화
         if isScanning && !wasScanning {
             context.coordinator.hasSaved = false
             print("스캔 시작")
@@ -129,7 +129,7 @@ struct ARViewContainer: UIViewRepresentable {
             print("스캔 정지")
         }
         
-        // ✅ 저장 트리거
+        // 저장 트리거
         if shouldSave && !context.coordinator.hasSaved {
             context.coordinator.saveMeshToOBJ()
             context.coordinator.hasSaved = true
@@ -149,7 +149,7 @@ struct ARViewContainer: UIViewRepresentable {
         var arSession: ARSession?
         var arView: ARView?
         
-        // ✅ ARFrame 업데이트를 통해 스캔 진행 상황 추적
+        // ARFrame 업데이트를 통해 스캔 진행 상황 추적
         func session(_ session: ARSession, didUpdate frame: ARFrame) {
             guard isScanning else { return }
             
@@ -166,7 +166,7 @@ struct ARViewContainer: UIViewRepresentable {
             }
         }
         
-        // ✅ 실제 ARObjectAnchor가 추가될 때 (스캔 완료 후 감지 시)
+        // 실제 ARObjectAnchor가 추가될 때 (스캔 완료 후 감지 시)
         func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
             let objectAnchors = anchors.compactMap { $0 as? ARObjectAnchor }
             if !objectAnchors.isEmpty {
@@ -185,15 +185,15 @@ struct ARViewContainer: UIViewRepresentable {
             
             print("스캔 데이터 저장 시작")
             
-            // ✅ 카메라 위치를 중심으로 일정 영역의 reference object 생성
+            //  카메라 위치를 중심으로 일정 영역의 reference object 생성
             let cameraTransform = currentFrame.camera.transform
             let centerSimd4 = cameraTransform.columns.3
             let centerSimd3 = SIMD3<Float>(centerSimd4.x, centerSimd4.y, centerSimd4.z)
             
-            // ✅ 스캔할 물체의 크기 설정 (필요에 따라 조정)
+            // 스캔할 물체의 크기 설정 (필요에 따라 조정)
             let extent: SIMD3<Float> = SIMD3<Float>(0.3, 0.3, 0.3) // 30cm x 30cm x 30cm
             
-            // ✅ createReferenceObject 호출
+            // CreateReferenceObject 호출
             arSession.createReferenceObject(
                 transform: cameraTransform,
                 center: centerSimd3,
@@ -217,7 +217,7 @@ struct ARViewContainer: UIViewRepresentable {
                         return
                     }
                     
-                    // ✅ .arobject 파일로 저장
+                    // .arobject 파일로 저장
                     let fileName = "scan_\(Date().timeIntervalSince1970).arobject"
                     let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                     let fileURL = documentsPath.appendingPathComponent(fileName)
