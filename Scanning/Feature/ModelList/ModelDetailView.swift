@@ -9,7 +9,7 @@ import SwiftUI
 import SceneKit
 import UIKit
 import SwiftData
-import ARKit
+import ARKit // ARReferenceObject를 사용하기 위해 추가
 
 struct ModelDetailView: View {
     let model: ScanModel
@@ -17,24 +17,12 @@ struct ModelDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             
-            if model.filePath.hasSuffix(".arobject") {
-                Text("파일 유형: AR Reference Object (.arobject)")
-                    .font(.title3)
-                    .bold()
-                    .foregroundColor(.orange)
-                
-                Text("이 파일은 AR 세션에서 물체를 인식하기 위한 메타데이터 파일입니다. 3D 모델(.obj) 파일이 아니므로, 현재 앱에서는 3D 뷰어로 직접 표시할 수 없습니다.")
-                    .font(.body)
-                    .padding(.bottom)
-                
-                Divider()
-                
-            } else {
-                SceneKitView(modelPath: model.filePath)
-                    .frame(height: 300)
-                    .cornerRadius(10)
-                    .padding()
-            }
+            SceneKitView(modelPath: model.filePath)
+                .frame(height: 300)
+                .cornerRadius(10)
+                .padding()
+            
+            Divider()
             
             // 모델 정보 표시
             HStack {
@@ -57,55 +45,75 @@ struct ModelDetailView: View {
                 Text(model.createdAt.formatted(date: .abbreviated, time: .shortened))
             }
             HStack {
-                Text("저장된 앵커/메쉬:")
+                Text("특징점 수 (스캔 품질):")
                     .bold()
                 Spacer()
-                Text("\(model.meshCount) 개")
+                Text("\(model.vertextCount)")
+            }
+            
+            // .arobject 파일임을 안내하는 메시지
+            if model.filePath.hasSuffix(".arobject") {
+                Text("⚠️ 이 뷰는 저장된 AR Reference Object(.arobject)의 **경계 상자(Bounding Box)**를 나타냅니다. 실제 3D 메쉬 모델이 아닙니다.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 10)
             }
             
             Spacer()
         }
         .padding()
-        .navigationTitle(model.fileName)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: shareModel) {
-                    Image(systemName: "square.and.arrow.up")
-                }
-            }
-        }
-    }
-    
-    private func shareModel() {
-        let fileURL = URL(fileURLWithPath: model.filePath)
-        let activityVC = UIActivityViewController(
-            activityItems: [fileURL],
-            applicationActivities: nil
-        )
-        
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootViewController = windowScene.windows.first?.rootViewController {
-            rootViewController.present(activityVC, animated: true, completion: nil)
-        }
+        .navigationTitle("모델 상세 정보")
     }
 }
 
+// ARReferenceObject의 Extent를 시각화하는 SceneKit 뷰
 struct SceneKitView: UIViewRepresentable {
     let modelPath: String
     
     func makeUIView(context: Context) -> SCNView {
         let scnView = SCNView()
-        scnView.backgroundColor = .black
-        scnView.allowsCameraControl = true  // 손가락으로 회전/확대/축소
-        scnView.autoenablesDefaultLighting = true  // 자동 조명
-        scnView.showsStatistics = true  // FPS 등 통계 표시
-        
+        scnView.allowsCameraControl = true
+        scnView.autoenablesDefaultLighting = true
+        scnView.backgroundColor = UIColor.systemBackground
+
         let scene = SCNScene()
         
-        // OBJ/USDZ 파일 로드
-        if let modelURL = URL(string: "file://\(modelPath)"),
-           let loadedScene = try? SCNScene(url: modelURL, options: nil) {
+        // MARK: - .arobject 파일 처리 로직 (스캔 결과 시각화)
+        if modelPath.hasSuffix(".arobject"),
+           let modelURL = URL(string: "file://\(modelPath)"),
+           let referenceObject = try? ARReferenceObject(archiveURL: modelURL)
+        {
+            print("ARReferenceObject 파일 로드 성공: \(modelURL.lastPathComponent)")
+
+            let extent = referenceObject.extent
+            
+            // Extent를 사용하여 박스 노드 생성 (와이어프레임 시각화)
+            let boxGeometry = SCNBox(
+                width: CGFloat(extent.x),
+                height: CGFloat(extent.y),
+                length: CGFloat(extent.z),
+                chamferRadius: 0.0
+            )
+            
+            let boxNode = SCNNode(geometry: boxGeometry)
+            boxNode.geometry?.firstMaterial?.fillMode = .lines
+            boxNode.geometry?.firstMaterial?.diffuse.contents = UIColor.systemBlue // 색상
+            boxNode.position = SCNVector3(0, 0, 0) // 중심에 배치
+            scene.rootNode.addChildNode(boxNode)
+            
+            // 카메라 설정 (물체 크기에 맞게)
+            let maxSize = Swift.max(extent.x, Swift.max(extent.y, extent.z))
+            
+            let cameraNode = SCNNode()
+            cameraNode.camera = SCNCamera()
+            cameraNode.position = SCNVector3(0, maxSize * 0.5, maxSize * 2.0)
+            cameraNode.look(at: SCNVector3(0, 0, 0))
+            scene.rootNode.addChildNode(cameraNode)
+            
+        }
+        // MARK: - 일반 3D 모델 파일 처리 로직 (기존 로직 유지)
+        else if let modelURL = URL(string: "file://\(modelPath)"),
+                let loadedScene = try? SCNScene(url: modelURL, options: nil) {
             
             if let rootNode = loadedScene.rootNode.childNodes.first {
                 scene.rootNode.addChildNode(rootNode)
@@ -138,7 +146,7 @@ struct SceneKitView: UIViewRepresentable {
             
             print("모델 파일 로드 성공: \(modelURL.lastPathComponent)")
         } else {
-            print("모델 파일 로드 실패: \(modelPath)")
+            print("모델 파일 로드 실패: 지원하지 않는 형식 또는 파일 없음 (\(modelPath))")
         }
         
         scnView.scene = scene
@@ -146,6 +154,5 @@ struct SceneKitView: UIViewRepresentable {
         return scnView
     }
     
-    func updateUIView(_ uiView: SCNView, context: Context) {
-    }
+    func updateUIView(_ uiView: SCNView, context: Context) {}
 }
