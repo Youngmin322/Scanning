@@ -111,7 +111,7 @@ struct SceneKitView: UIViewRepresentable {
             scene.rootNode.addChildNode(cameraNode)
             
         }
-        // MARK: - 일반 3D 모델 파일 처리 로직 (기존 로직 유지)
+        // MARK: - 일반 3D 모델 파일 처리 로직
         else if let modelURL = URL(string: "file://\(modelPath)"),
                 let loadedScene = try? SCNScene(url: modelURL, options: nil) {
             

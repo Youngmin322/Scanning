@@ -7,6 +7,7 @@
 
 import SwiftUI
 import ComposableArchitecture
+import RealityKit
 
 struct ContentView: View {
     
@@ -16,7 +17,7 @@ struct ContentView: View {
         TabView {
             Tab("스캔", systemImage: "camera.viewfinder") {
                 NavigationStack {
-                    EmptyView()
+                    ScaneView(store: store)
                 }
             }
             
