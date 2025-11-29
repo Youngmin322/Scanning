@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct ScanningApp: App {
+    static let subsystem: String = "com.example.apple-samplecode.guided-capture-sample"
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             ScanModel.self,

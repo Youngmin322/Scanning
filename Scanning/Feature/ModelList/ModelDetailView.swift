@@ -9,7 +9,7 @@ import SwiftUI
 import SceneKit
 import UIKit
 import SwiftData
-import ARKit // ARReferenceObject를 사용하기 위해 추가
+import ARKit
 
 struct ModelDetailView: View {
     let model: ScanModel
