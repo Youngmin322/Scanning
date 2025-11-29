@@ -6,29 +6,17 @@
 //
 
 import SwiftUI
-import SwiftData
+import ComposableArchitecture
 
 @main
-struct ScanningApp: App {
-    static let subsystem: String = "com.example.apple-samplecode.guided-capture-sample"
-    
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            ScanModel.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+struct MyObjectCaptureApp: App {
+    static let store = Store(initialState: CaptureFeature.State()) {
+        CaptureFeature()
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(store: MyObjectCaptureApp.store)
         }
-        .modelContainer(for: ScanModel.self)
     }
 }
