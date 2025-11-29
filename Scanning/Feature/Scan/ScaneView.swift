@@ -86,7 +86,9 @@ struct ARViewContainer: UIViewRepresentable {
     @Environment(\.modelContext) private var modelContext
     
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        let coordinator = Coordinator()
+        coordinator.pointCloudCoordinator = PointCloudCoordinator()
+        return coordinator
     }
     
     func makeUIView(context: Context) -> ARView {
@@ -148,12 +150,15 @@ struct ARViewContainer: UIViewRepresentable {
         var modelContext: ModelContext?
         var arSession: ARSession?
         var arView: ARView?
+        var pointCloudCoordinator: PointCloudCoordinator?
         
         // ARFrame 업데이트를 통해 스캔 진행 상황 추적
         func session(_ session: ARSession, didUpdate frame: ARFrame) {
             guard isScanning, let store = self.store else { return }
             
             currentFrame = frame
+            
+            pointCloudCoordinator?.updatePointCloud(newFrame: frame)
             
             // 스캔 품질 피드백: ARKit이 제공하는 trackingState와 특징점 개수를 활용
             let trackingState = frame.camera.trackingState
