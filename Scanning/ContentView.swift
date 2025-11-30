@@ -9,19 +9,22 @@ import SwiftUI
 import ComposableArchitecture
 
 struct ContentView: View {
+    let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+    }
+    
     var body: some View {
+        
         TabView {
             Tab("스캔", systemImage: "camera.viewfinder") {
                 NavigationStack {
-                    ScaneView(store: Store(initialState: ScaneFeature.State()) {
-                        ScaneFeature()
-                    })
+                    AppView(store: store)
                 }
             }
             
             Tab("모델", systemImage: "cube.fill") {
                 NavigationStack {
-                ModelListView()
+                    EmptyView()
                 }
             }
         }
