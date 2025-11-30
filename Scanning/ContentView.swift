@@ -7,23 +7,24 @@
 
 import SwiftUI
 import ComposableArchitecture
-import RealityKit
 
 struct ContentView: View {
-    
-    let store: StoreOf<CaptureFeature>
+    let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+    }
     
     var body: some View {
+        
         TabView {
             Tab("스캔", systemImage: "camera.viewfinder") {
                 NavigationStack {
-                    ScaneView(store: store)
+                    AppView(store: store)
                 }
             }
             
             Tab("모델", systemImage: "cube.fill") {
                 NavigationStack {
-                ModelListView()
+                    EmptyView()
                 }
             }
         }
